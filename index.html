@@ -157,169 +157,137 @@
     </div>
 
     <script>
-        // 任务2: 添加这个全新的函数
-async function fetchGuruData(symbol) {
-    // 在开始获取数据时，给用户一个提示
-    const container = document.querySelector('.main-layout');
-    if(container) {
-        container.innerHTML = '<h2><span aria-busy="true">正在从华尔街获取最新数据，请稍候...</span></h2>';
-    }
-
-    try {
-        // 这个URL `/api/getGuruData` 会被Netlify自动导向我们的后端函数
-        const response = await fetch(`/api/getGuruData?symbol=${symbol}`);
-        
-        if (!response.ok) {
-            // 如果服务器返回错误（比如500），我们能在这里捕捉到
-            const errorData = await response.json();
-            throw new Error(errorData.error || `服务器响应错误: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.error) {
-            // 如果后端函数内部逻辑出错（比如API Key问题）
-            throw new Error(data.error);
-        }
-        
-        // 成功获取数据，返回给调用者
-        return data;
-
-    } catch (error) {
-        console.error('获取数据失败:', error);
-        // 在页面上显示一个用户友好的错误信息
+    // 任务2: API请求函数
+    async function fetchGuruData(symbol) {
         const container = document.querySelector('.main-layout');
-        if(container) {
-            container.innerHTML = `
-                <div class="card">
-                    <h2>糟糕，出错了</h2>
-                    <p>无法获取股票数据。可能的原因是：</p>
-                    <ul>
-                        <li>股票代码 <strong>${symbol}</strong> 不存在或无效。</li>
-                        <li>网络连接出现问题。</li>
-                        <li>服务器暂时不可用。</li>
-                    </ul>
-                    <p>错误详情: ${error.message}</p>
-                </div>`;
+        if (container) {
+            container.innerHTML = '<h2><span aria-busy="true">正在从华尔街获取最新数据，请稍候...</span></h2>';
         }
-        return null; // 返回null表示失败
+
+        try {
+            const response = await fetch(`/api/getGuruData?symbol=${symbol}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `服务器响应错误: ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            return data;
+        } catch (error) {
+            console.error('获取数据失败:', error);
+            const container = document.querySelector('.main-layout');
+            if (container) {
+                container.innerHTML = `
+                    <div class="card">
+                        <h2>糟糕，出错了</h2>
+                        <p>无法获取股票数据。可能的原因是：</p>
+                        <ul>
+                            <li>股票代码 <strong>${symbol}</strong> 不存在或无效。</li>
+                            <li>网络连接出现问题。</li>
+                            <li>服务器暂时不可用。</li>
+                        </ul>
+                        <p>错误详情: ${error.message}</p>
+                    </div>`;
+            }
+            return null;
+        }
     }
-}
-// 任务3: 粘贴这个全新的渲染函数
-function renderDashboard(originalHTML, guruData) {
-    // --- 侦查代码开始 ---
-    console.log("进入renderDashboard函数，这是从后端收到的原始数据:");
-    console.log(guruData);
-    // --- 侦查代码结束 ---
 
-    if (!guruData || !guruData.quote || !guruData.recommendation) {
-        // ... (后面的代码保持不变)
-    if (!guruData || !guruData.quote || !guruData.recommendation) {
-        console.error("渲染失败：传入的数据不完整");
-        return;
+    // 任务3: 页面渲染函数
+    function renderDashboard(originalHTML, guruData) {
+        // --- 侦查代码开始 ---
+        console.log("进入renderDashboard函数，这是从后端收到的原始数据:");
+        console.log(guruData);
+        // --- 侦查代码结束 ---
+
+        if (!guruData || !guruData.quote || !guruData.recommendation) {
+            console.error("渲染失败：传入的数据不完整或格式错误");
+            // 如果数据显示不出来，可以检查上面的console.log看看guruData到底是什么
+            return;
+        }
+
+        const container = document.querySelector('.container');
+        container.innerHTML = originalHTML;
+        
+        const { quote, recommendation } = guruData;
+        const currentPrice = quote.c;
+        const targetPrice = recommendation.targetHigh;
+        const upside = ((targetPrice / currentPrice) - 1) * 100;
+        const isPositive = upside >= 0;
+        
+        document.querySelector('.stock-header .symbol').textContent = recommendation.symbol;
+        document.querySelector('.stock-header .name').textContent = `${recommendation.symbol} 公司`;
+        
+        document.getElementById('currentPriceLabel').textContent = `$${currentPrice.toFixed(2)}`;
+        document.getElementById('targetPriceLabel').textContent = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
+        document.getElementById('targetPriceLabel').className = 'value ' + (isPositive ? 'positive' : 'negative');
+        document.getElementById('targetPricePeriodLabel').textContent = `华尔街最高预测`;
+        
+        const gaugeChart = document.getElementById('gaugeChart');
+        const potentialValue = document.getElementById('potentialValue');
+        const absoluteMarketMax = 50.0;
+        const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
+        const degree = fillPercent * 90;
+        let gradient;
+        if (isPositive) {
+            gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`;
+        } else {
+            gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`;
+        }
+        gaugeChart.style.background = gradient;
+        potentialValue.innerHTML = `${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%`;
+        potentialValue.className = 'value ' + (isPositive ? 'positive' : 'negative');
+        
+        const totalBuy = (recommendation.buy || 0) + (recommendation.strongBuy || 0);
+        const totalHold = recommendation.hold || 0;
+        const totalSell = (recommendation.sell || 0) + (recommendation.strongSell || 0);
+        const totalRatings = totalBuy + totalHold + totalSell;
+        
+        document.getElementById('analystCount').textContent = `${totalRatings} 位`;
+        const targetPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
+        document.getElementById('targetPrice').textContent = targetPriceText;
+        const lowPriceText = recommendation.targetLow ? `$${recommendation.targetLow.toFixed(2)}` : 'N/A';
+        const highPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
+        document.getElementById('priceRange').textContent = `${lowPriceText} - ${highPriceText}`;
+        
+        const barBuy = document.getElementById('barBuy');
+        const barHold = document.getElementById('barHold');
+        const barSell = document.getElementById('barSell');
+        barBuy.style.width = totalRatings > 0 ? `${(totalBuy / totalRatings) * 100}%` : '0%';
+        barBuy.textContent = totalBuy;
+        barHold.style.width = totalRatings > 0 ? `${(totalHold / totalRatings) * 100}%` : '0%';
+        barHold.textContent = totalHold;
+        barSell.style.width = totalRatings > 0 ? `${(totalSell / totalRatings) * 100}%` : '0%';
+        barSell.textContent = totalSell;
+        
+        document.querySelector('.analyst-list-container').innerHTML = '<h3>分析师列表</h3><p>此功能为Pro版本提供。</p>';
+        const sidebar = document.querySelector('.sidebar .card');
+        sidebar.innerHTML = `
+            <h3>市场机会</h3>
+            <p>上涨/下跌潜力Top 5为Pro版本功能，敬请期待！</p>
+            <div class="email-capture">
+                <h4>喜欢这个工具？</h4>
+                <p>留下邮箱，第一时间获取Pro版上线通知。</p>
+                <form class="email-form" onsubmit="alert('感谢订阅！'); return false;">
+                    <input type="email" class="email-input" placeholder="请输入您的电子邮箱" required>
+                    <button type="submit" class="submit-btn">立即订阅</button>
+                </form>
+            </div>
+        `;
+        
+        document.getElementById('currentDate').textContent = `数据更新于: ${new Date().toLocaleDateString('zh-CN')}`;
     }
 
-    // 先把原始的、干净的HTML结构恢复回来
-    const container = document.querySelector('.container');
-    container.innerHTML = originalHTML;
-    
-    // --- 数据“翻译”和准备 ---
-    const { quote, recommendation } = guruData;
-    const currentPrice = quote.c;
-    const targetPrice = recommendation.targetHigh; // 使用最高目标价作为预测
-    const upside = ((targetPrice / currentPrice) - 1) * 100;
-    const isPositive = upside >= 0;
-
-    // --- 开始用真实数据填充页面元素 (DOM Manipulation) ---
-    
-    // 1. 顶部股票代码和名称
-    document.querySelector('.stock-header .symbol').textContent = recommendation.symbol;
-    document.querySelector('.stock-header .name').textContent = `${recommendation.symbol} 公司`; // 临时名称
-
-    // 2. 仪表盘数据
-    document.getElementById('currentPriceLabel').textContent = `$${currentPrice.toFixed(2)}`;
-    document.getElementById('targetPriceLabel').textContent = `$${targetPrice.toFixed(2)}`;
-    document.getElementById('targetPriceLabel').className = 'value ' + (isPositive ? 'positive' : 'negative');
-    document.getElementById('targetPricePeriodLabel').textContent = `华尔街最高预测`; // 修改标签以反映数据来源
-
-    // 3. 仪表盘图表 (Gauge Chart)
-    const gaugeChart = document.getElementById('gaugeChart');
-    const potentialValue = document.getElementById('potentialValue');
-    const absoluteMarketMax = 50.0; // 假设市场的平均最大潜力是50%，用于校准仪表盘
-    const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
-    const degree = fillPercent * 90;
-    let gradient;
-    if (isPositive) {
-        gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`;
-    } else {
-        gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`;
-    }
-    gaugeChart.style.background = gradient;
-    potentialValue.innerHTML = `${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%`;
-    potentialValue.className = 'value ' + (isPositive ? 'positive' : 'negative');
-
-  // --- 这是新的、加固后的代码块 ---
-// 4. 分析师共识卡片
-const totalBuy = (recommendation.buy || 0) + (recommendation.strongBuy || 0);
-const totalHold = recommendation.hold || 0;
-const totalSell = (recommendation.sell || 0) + (recommendation.strongSell || 0);
-const totalRatings = totalBuy + totalHold + totalSell;
-
-document.getElementById('analystCount').textContent = `${totalRatings} 位`;
-
-// **在这里增加防御性检查**
-const targetPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
-document.getElementById('targetPrice').textContent = targetPriceText;
-
-const lowPriceText = recommendation.targetLow ? `$${recommendation.targetLow.toFixed(2)}` : 'N/A';
-const highPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
-document.getElementById('priceRange').textContent = `${lowPriceText} - ${highPriceText}`;
-    
-    // 5. 评级条
-    const barBuy = document.getElementById('barBuy');
-    const barHold = document.getElementById('barHold');
-    const barSell = document.getElementById('barSell');
-    barBuy.style.width = totalRatings > 0 ? `${(totalBuy / totalRatings) * 100}%` : '0%';
-    barBuy.textContent = totalBuy;
-    barHold.style.width = totalRatings > 0 ? `${(totalHold / totalRatings) * 100}%` : '0%';
-    barHold.textContent = totalHold;
-    barSell.style.width = totalRatings > 0 ? `${(totalSell / totalRatings) * 100}%` : '0%';
-    barSell.textContent = totalSell;
-
-    // 6. 处理缺失的数据 (分析师列表和侧边栏)
-    document.querySelector('.analyst-list-container').innerHTML = '<h3>分析师列表</h3><p>此功能为Pro版本提供。</p>';
-    const sidebar = document.querySelector('.sidebar .card');
-    sidebar.innerHTML = `
-        <h3>市场机会</h3>
-        <p>上涨/下跌潜力Top 5为Pro版本功能，敬请期待！</p>
-        <div class="email-capture">
-            <h4>喜欢这个工具？</h4>
-            <p>留下邮箱，第一时间获取Pro版上线通知。</p>
-            <form class="email-form" onsubmit="alert('感谢订阅！'); return false;">
-                <input type="email" class="email-input" placeholder="请输入您的电子邮箱" required>
-                <button type="submit" class="submit-btn">立即订阅</button>
-            </form>
-        </div>
-    `;
-    
-    // 7. 更新日期
-    document.getElementById('currentDate').textContent = `数据更新于: ${new Date().toLocaleDateString('zh-CN')}`;
-}
-// 任务4: 粘贴这段最终的启动代码
-document.addEventListener('DOMContentLoaded', async () => {
-    // 先把原始的、完整的HTML结构保存下来，以便后续恢复
-    const originalHTML = document.querySelector('.container').innerHTML;
-
-    // 在这里可以修改你想默认查询的股票代码
-    const symbolToFetch = 'AAPL'; 
-    
-    const guruData = await fetchGuruData(symbolToFetch);
-
-    if (guruData) {
-        // 如果成功获取数据，就用数据来渲染页面
-        renderDashboard(originalHTML, guruData);
-    }
-    // 如果获取数据失败，fetchGuruData函数内部已经处理了错误信息的显示
-});
-    </script>
-</body>
+    // 任务4: 主执行逻辑
+    document.addEventListener('DOMContentLoaded', async () => {
+        const originalHTML = document.querySelector('.container').innerHTML;
+        const symbolToFetch = 'AAPL';
+        const guruData = await fetchGuruData(symbolToFetch);
+        if (guruData) {
+            renderDashboard(originalHTML, guruData);
+        }
+    );
+</script>
 </html>
