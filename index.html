@@ -206,6 +206,13 @@ async function fetchGuruData(symbol) {
 }
 // 任务3: 粘贴这个全新的渲染函数
 function renderDashboard(originalHTML, guruData) {
+    // --- 侦查代码开始 ---
+    console.log("进入renderDashboard函数，这是从后端收到的原始数据:");
+    console.log(guruData);
+    // --- 侦查代码结束 ---
+
+    if (!guruData || !guruData.quote || !guruData.recommendation) {
+        // ... (后面的代码保持不变)
     if (!guruData || !guruData.quote || !guruData.recommendation) {
         console.error("渲染失败：传入的数据不完整");
         return;
