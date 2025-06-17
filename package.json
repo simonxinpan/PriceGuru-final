@@ -1,0 +1,8 @@
+{
+  "name": "priceguru-final",
+  "version": "1.0.0",
+  "description": "融合版PriceGuru",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
