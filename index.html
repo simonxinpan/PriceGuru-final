@@ -250,15 +250,22 @@ function renderDashboard(originalHTML, guruData) {
     potentialValue.innerHTML = `${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%`;
     potentialValue.className = 'value ' + (isPositive ? 'positive' : 'negative');
 
-    // 4. 分析师共识卡片
-    const totalBuy = recommendation.buy + recommendation.strongBuy;
-    const totalHold = recommendation.hold;
-    const totalSell = recommendation.sell + recommendation.strongSell;
-    const totalRatings = totalBuy + totalHold + totalSell;
+  // --- 这是新的、加固后的代码块 ---
+// 4. 分析师共识卡片
+const totalBuy = (recommendation.buy || 0) + (recommendation.strongBuy || 0);
+const totalHold = recommendation.hold || 0;
+const totalSell = (recommendation.sell || 0) + (recommendation.strongSell || 0);
+const totalRatings = totalBuy + totalHold + totalSell;
 
-    document.getElementById('analystCount').textContent = `${totalRatings} 位`;
-    document.getElementById('targetPrice').textContent = `$${targetPrice.toFixed(2)}`;
-    document.getElementById('priceRange').textContent = `$${recommendation.targetLow.toFixed(2)} - $${recommendation.targetHigh.toFixed(2)}`;
+document.getElementById('analystCount').textContent = `${totalRatings} 位`;
+
+// **在这里增加防御性检查**
+const targetPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
+document.getElementById('targetPrice').textContent = targetPriceText;
+
+const lowPriceText = recommendation.targetLow ? `$${recommendation.targetLow.toFixed(2)}` : 'N/A';
+const highPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
+document.getElementById('priceRange').textContent = `${lowPriceText} - ${highPriceText}`;
     
     // 5. 评级条
     const barBuy = document.getElementById('barBuy');
