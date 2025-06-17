@@ -80,82 +80,22 @@
             <div id="currentDate" class="date-info"></div>
         </header>
 
-        <div class="main-layout">
-            <div class="main-content">
-                <header class="stock-header">
-                    <div>
-                        <div class="symbol">AAPL</div>
-                        <div class="name">苹果公司</div>
-                    </div>
-                </header>
-                <div class="card">
-                    <div class="timeframe-selector" id="timeframeSelector">
-                        <button class="timeframe-btn" data-months="3">未来3个月</button>
-                        <button class="timeframe-btn active" data-months="6">未来6个月</button>
-                        <button class="timeframe-btn" data-months="12">未来12个月</button>
-                    </div>
-                    
-                    <div class="gauge-display">
-                        <div class="gauge-side-label">
-                            <span class="value current" id="currentPriceLabel"></span>
-                            <span class="label">当前股价</span>
-                        </div>
-                        <div class="gauge-container">
-                            <div class="gauge-chart" id="gaugeChart"></div>
-                            <div class="zero-line"></div>
-                            <div class="potential-summary">
-                                <div class="value" id="potentialValue"></div>
-                                <div class="label">潜在空间</div>
-                            </div>
-                        </div>
-                        <div class="gauge-side-label">
-                            <span class="value" id="targetPriceLabel"></span>
-                            <span class="label" id="targetPricePeriodLabel"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h2>分析师共识</h2>
-                    <div class="consensus-grid">
-                        <div class="consensus-stats">
-                            <div class="stat-item"><div class="label">评级分析师</div><div class="value" id="analystCount"></div></div>
-                            <div class="stat-item"><div class="label">平均目标价</div><div class="value" id="targetPrice"></div></div>
-                            <div class="stat-item"><div class="label">目标价范围</div><div class="value" id="priceRange"></div></div>
-                        </div>
-                        <div class="rating-chart">
-                            <div class="bar-wrapper"><div class="bar-label">买入</div><div class="bar bar-buy" id="barBuy"></div></div>
-                            <div class="bar-wrapper"><div class="bar-label">持有</div><div class="bar bar-hold" id="barHold"></div></div>
-                            <div class="bar-wrapper"><div class="bar-label">卖出</div><div class="bar bar-sell" id="barSell"></div></div>
-                        </div>
-                    </div>
-                    <div class="analyst-list-container">
-                        <h3>分析师列表</h3>
-                        <ul class="analyst-list" id="analystList"></ul>
-                    </div>
-                </div>
-            </div>
-
-            <aside class="sidebar">
-                <div class="card">
-                    <h3 id="sidebarTitle"></h3>
-                    <h4>上涨潜力 Top 5</h4>
-                    <ul class="stock-list" id="topGainsList"></ul>
-                    <h4 style="margin-top: 20px;">下跌风险 Top 5</h4>
-                    <ul class="stock-list" id="topLossesList"></ul>
-                    <div class="email-capture">
-                        <h4>喜欢这个工具？</h4>
-                        <p>完整版即将上线！留下邮箱，第一时间获取上线通知和早期用户专属福利。</p>
-                        <form class="email-form" onsubmit="alert('感谢订阅！我们已收到您的邮箱，上线后会第一时间通知您！'); return false;">
-                            <input type="email" class="email-input" placeholder="请输入您的电子邮箱" required>
-                            <button type="submit" class="submit-btn">立即订阅</button>
-                        </form>
-                    </div>
-                </div>
-            </aside>
+  <!-- 用这个替换掉旧的 main-layout div -->
+<div class="main-content" id="hot-list-container">
+    <!-- JavaScript 将会在这里动态填充内容 -->
+</div>
+<aside class="sidebar">
+    <div class="card">
+        <div class="email-capture">
+            <h4>喜欢这个工具？</h4>
+            <p>留下邮箱，第一时间获取新功能上线通知。</p>
+            <form class="email-form" onsubmit="alert('感谢订阅！我们已收到您的邮箱。'); return false;">
+                <input type="email" class="email-input" placeholder="请输入您的电子邮箱" required>
+                <button type="submit" class="submit-btn">立即订阅</button>
+            </form>
         </div>
     </div>
-
+</aside>
     <script>
     // 任务2: API请求函数
     async function fetchGuruData(symbol) {
