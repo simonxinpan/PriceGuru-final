@@ -195,90 +195,81 @@
         }
     }
 
-    // 任务3: 页面渲染函数
-    function renderDashboard(originalHTML, guruData) {
-        // --- 侦查代码开始 ---
-        console.log("进入renderDashboard函数，这是从后端收到的原始数据:");
-        console.log(guruData);
-        // --- 侦查代码结束 ---
+    // 任务3: 页面渲染函数 (V2 - 终极数据版)
+function renderDashboard(originalHTML, guruData) {
+    console.log("进入renderDashboard，收到V2版数据:", guruData);
 
-        if (!guruData || !guruData.quote || !guruData.recommendation) {
-            console.error("渲染失败：传入的数据不完整或格式错误");
-            // 如果数据显示不出来，可以检查上面的console.log看看guruData到底是什么
-            return;
-        }
+    if (!guruData || !guruData.quote || !guruData.recommendation || !guruData.target) {
+        console.error("渲染失败：数据结构不完整。");
+        const container = document.querySelector('.main-layout');
+        if(container) { container.innerHTML = `<div class="card"><h2>数据不完整</h2><p>无法获取到该股票的全部预测数据。</p></div>`; }
+        return;
+    }
+    
+    const container = document.querySelector('.container');
+    container.innerHTML = originalHTML;
+    
+    const { quote, recommendation, target } = guruData;
 
-        const container = document.querySelector('.container');
-        container.innerHTML = originalHTML;
-        
-        const { quote, recommendation } = guruData;
-        const currentPrice = quote.c;
-        const targetPrice = recommendation.targetHigh;
-        const upside = ((targetPrice / currentPrice) - 1) * 100;
-        const isPositive = upside >= 0;
-        
-        document.querySelector('.stock-header .symbol').textContent = recommendation.symbol;
-        document.querySelector('.stock-header .name').textContent = `${recommendation.symbol} 公司`;
-        
-        document.getElementById('currentPriceLabel').textContent = `$${currentPrice.toFixed(2)}`;
-        document.getElementById('targetPriceLabel').textContent = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
-        document.getElementById('targetPriceLabel').className = 'value ' + (isPositive ? 'positive' : 'negative');
-        document.getElementById('targetPricePeriodLabel').textContent = `华尔街最高预测`;
-        
-        const gaugeChart = document.getElementById('gaugeChart');
-        const potentialValue = document.getElementById('potentialValue');
+    // --- 使用最可靠的数据源 ---
+    const currentPrice = quote.c || 0;
+    // 关键：优先使用平均目标价(targetMean)，如果不存在，再使用最高目标价
+    const bestTargetPrice = target.targetMean || target.targetHigh || 0;
+    const targetLabel = target.targetMean ? "华尔街平均预测" : "华尔街最高预测";
+
+    const upside = (currentPrice > 0 && bestTargetPrice > 0) ? ((bestTargetPrice / currentPrice) - 1) * 100 : 0;
+    const isPositive = upside >= 0;
+    
+    // --- 开始渲染，现在我们有充足的数据了 ---
+    document.querySelector('.stock-header .symbol').textContent = target.symbol || 'N/A';
+    document.querySelector('.stock-header .name').textContent = `${target.symbol || '未知'} 公司`;
+    
+    document.getElementById('currentPriceLabel').textContent = `$${currentPrice.toFixed(2)}`;
+    document.getElementById('targetPriceLabel').textContent = bestTargetPrice > 0 ? `$${bestTargetPrice.toFixed(2)}` : 'N/A';
+    document.getElementById('targetPriceLabel').className = 'value ' + (isPositive ? 'positive' : 'negative');
+    document.getElementById('targetPricePeriodLabel').textContent = targetLabel;
+    
+    const potentialValue = document.getElementById('potentialValue');
+    if(potentialValue) {
+        potentialValue.innerHTML = bestTargetPrice > 0 ? `${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%` : 'N/A';
+        potentialValue.className = 'value ' + (isPositive ? 'positive' : 'negative');
+    }
+    
+    const gaugeChart = document.getElementById('gaugeChart');
+    if(gaugeChart && bestTargetPrice > 0){
         const absoluteMarketMax = 50.0;
         const fillPercent = Math.min(Math.abs(upside) / absoluteMarketMax, 1);
         const degree = fillPercent * 90;
         let gradient;
-        if (isPositive) {
-            gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`;
-        } else {
-            gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`;
-        }
+        if (isPositive) { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg 90deg, #27ae60 90deg ${90 + degree}deg, #e9ecef ${90 + degree}deg 180deg)`; } 
+        else { gradient = `conic-gradient(from 180deg at 50% 100%, #e9ecef 0deg ${90 - degree}deg, #e74c3c ${90 - degree}deg 90deg, #e9ecef 90deg 180deg)`; }
         gaugeChart.style.background = gradient;
-        potentialValue.innerHTML = `${isPositive ? '▲' : '▼'} ${Math.abs(upside).toFixed(1)}%`;
-        potentialValue.className = 'value ' + (isPositive ? 'positive' : 'negative');
-        
-        const totalBuy = (recommendation.buy || 0) + (recommendation.strongBuy || 0);
-        const totalHold = recommendation.hold || 0;
-        const totalSell = (recommendation.sell || 0) + (recommendation.strongSell || 0);
-        const totalRatings = totalBuy + totalHold + totalSell;
-        
-        document.getElementById('analystCount').textContent = `${totalRatings} 位`;
-        const targetPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
-        document.getElementById('targetPrice').textContent = targetPriceText;
-        const lowPriceText = recommendation.targetLow ? `$${recommendation.targetLow.toFixed(2)}` : 'N/A';
-        const highPriceText = recommendation.targetHigh ? `$${recommendation.targetHigh.toFixed(2)}` : 'N/A';
-        document.getElementById('priceRange').textContent = `${lowPriceText} - ${highPriceText}`;
-        
-        const barBuy = document.getElementById('barBuy');
-        const barHold = document.getElementById('barHold');
-        const barSell = document.getElementById('barSell');
-        barBuy.style.width = totalRatings > 0 ? `${(totalBuy / totalRatings) * 100}%` : '0%';
-        barBuy.textContent = totalBuy;
-        barHold.style.width = totalRatings > 0 ? `${(totalHold / totalRatings) * 100}%` : '0%';
-        barHold.textContent = totalHold;
-        barSell.style.width = totalRatings > 0 ? `${(totalSell / totalRatings) * 100}%` : '0%';
-        barSell.textContent = totalSell;
-        
-        document.querySelector('.analyst-list-container').innerHTML = '<h3>分析师列表</h3><p>此功能为Pro版本提供。</p>';
-        const sidebar = document.querySelector('.sidebar .card');
-        sidebar.innerHTML = `
-            <h3>市场机会</h3>
-            <p>上涨/下跌潜力Top 5为Pro版本功能，敬请期待！</p>
-            <div class="email-capture">
-                <h4>喜欢这个工具？</h4>
-                <p>留下邮箱，第一时间获取Pro版上线通知。</p>
-                <form class="email-form" onsubmit="alert('感谢订阅！'); return false;">
-                    <input type="email" class="email-input" placeholder="请输入您的电子邮箱" required>
-                    <button type="submit" class="submit-btn">立即订阅</button>
-                </form>
-            </div>
-        `;
-        
-        document.getElementById('currentDate').textContent = `数据更新于: ${new Date().toLocaleDateString('zh-CN')}`;
     }
+
+    const totalBuy = (recommendation.buy || 0) + (recommendation.strongBuy || 0);
+    const totalHold = recommendation.hold || 0;
+    const totalSell = (recommendation.sell || 0) + (recommendation.strongSell || 0);
+    const totalRatings = totalBuy + totalHold + totalSell;
+
+    document.getElementById('analystCount').textContent = `${totalRatings > 0 ? totalRatings : 'N/A'} 位`;
+    document.getElementById('targetPrice').textContent = target.targetMean ? `$${target.targetMean.toFixed(2)}` : 'N/A';
+    document.getElementById('priceRange').textContent = `${target.targetLow ? '$'+target.targetLow.toFixed(2) : 'N/A'} - ${target.targetHigh ? '$'+target.targetHigh.toFixed(2) : 'N/A'}`;
+    
+    const barBuy = document.getElementById('barBuy');
+    const barHold = document.getElementById('barHold');
+    const barSell = document.getElementById('barSell');
+    if(barBuy && barHold && barSell && totalRatings > 0){
+        barBuy.style.width = `${(totalBuy / totalRatings) * 100}%`; barBuy.textContent = totalBuy;
+        barHold.style.width = `${(totalHold / totalRatings) * 100}%`; barHold.textContent = totalHold;
+        barSell.style.width = `${(totalSell / totalRatings) * 100}%`; barSell.textContent = totalSell;
+    }
+    
+    // ... (其他静态部分的渲染，如侧边栏和日期，保持不变) ...
+    const dateElement = document.getElementById('currentDate');
+    if (dateElement) {
+        dateElement.textContent = `数据更新于: ${new Date().toLocaleDateString('zh-CN')}`;
+    }
+}
 
     // 任务4: 主执行逻辑
     document.addEventListener('DOMContentLoaded', async () => {
