@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // 文件路径: netlify/functions/getGuruData.js (V3 - 优雅降级版)
 const fetch = require('node-fetch');
 
@@ -44,4 +45,37 @@ exports.handler = async function (event, context) {
       })
     };
   } catch (error) { /* ...catch部分保持不变... */ }
+=======
+// 文件路径: netlify/functions/getGuruData.js (EODHD技术验证版)
+const fetch = require('node-fetch');
+
+exports.handler = async function (event, context) {
+  // ❗️ 注意：这里暂时用你的测试Key，部署到Netlify时再换成环境变量
+  const apiKey = " 684e609bf177c8.49627614"; 
+  const ticker = event.queryStringParameters.symbol || 'AAPL';
+  
+  // EODHD的分析师评级API端点
+  const url = `https://eodhistoricaldata.com/api/wall-street-analyst-ratings/${ticker}.US?api_token=${apiKey}&fmt=json`;
+
+  try {
+    console.log(`正在用EODHD API测试获取 ${ticker} 的评级数据...`);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`EODHD API请求失败: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+
+    console.log("成功从EODHD获取到数据！");
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify(data) // 将原始数据原封不动地返回给前端
+    };
+  } catch (error) {
+    console.error('后端函数执行出错:', error.message);
+    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+  }
+>>>>>>> Stashed changes
 };
