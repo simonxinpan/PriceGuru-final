@@ -1,47 +1,54 @@
-// 文件路径: netlify/functions/getGuruData.js (V3 - 优雅降级版)
 const fetch = require('node-fetch');
 
 exports.handler = async function (event, context) {
+  const apiKey = process.env.EODHD_API_KEY;
+
+  if (!apiKey) {
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ error: "EODHD_API_KEY environment variable is not set." }) 
+    };
+  }
+
   const ticker = event.queryStringParameters.symbol || 'AAPL';
-  const apiKey = process.env.FINNHUB_API_KEY;
-
-  if (!apiKey) { return { statusCode: 500, body: JSON.stringify({ error: 'API Key未配置' }) }; }
-
-  const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
-  const recommendationUrl = `https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${apiKey}`;
-  const priceTargetUrl = `https://finnhub.io/api/v1/stock/price-target?symbol=${ticker}&token=${apiKey}`;
+  
+  // --- 关键修正：使用正确的“Fundamentals API”端点 ---
+  const url = `https://eodhistoricaldata.com/api/fundamentals/${ticker}.US?api_token=${apiKey}`;
 
   try {
-    const [quoteResponse, recommendationResponse, priceTargetResponse] = await Promise.all([
-      fetch(quoteUrl),
-      fetch(recommendationUrl),
-      fetch(priceTargetUrl)
-    ]);
+    console.log(`正在用EODHD Fundamentals API获取 ${ticker} 的数据...`);
+    
+    const response = await fetch(url);
 
-    if (!quoteResponse.ok) throw new Error(`获取股价失败`);
-    if (!recommendationResponse.ok) throw new Error(`获取分析师评级失败`);
-    
-    const quoteData = await quoteResponse.json();
-    const recommendationData = await recommendationResponse.json();
-    
-    let priceTargetData = {}; // **关键改动**: 默认目标价数据为空对象
-    if (priceTargetResponse.ok) {
-        // **关键改动**: 只有在请求成功时，才去解析和赋值
-        priceTargetData = await priceTargetResponse.json();
-        console.log(`成功获取到 ${ticker} 的目标价数据!`);
-    } else {
-        console.warn(`无法获取 ${ticker} 的目标价数据 (状态: ${priceTargetResponse.status})，将优雅降级。`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`EODHD API请求失败: ${response.status} ${response.statusText}. 响应内容: ${errorText}`);
     }
+    
+    // EODHD的这个API，即使股票代码错误，也可能返回200 OK，但内容是"Not found."
+    // 所以我们需要检查返回的内容
+    const responseText = await response.text();
+    if (responseText.includes("Not found")) {
+         throw new Error(`在EODHD中找不到股票代码: ${ticker}`);
+    }
+    
+    const data = JSON.parse(responseText);
 
-    const latestRecommendation = (recommendationData && recommendationData.length > 0) ? recommendationData[0] : {};
-
+    // 我们只需要其中的分析师评级部分
+    const analystRatings = data.WallStreetTargetPrice;
+    
+    console.log("成功从EODHD获取并解析到分析师评级数据！");
+    
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        quote: quoteData,
-        recommendation: { /* ...评级数据保持不变... */ },
-        target: priceTargetData // 返回获取到的目标价数据，或者一个空对象
-      })
+      // 只返回我们需要的部分，而不是整个巨大的JSON
+      body: JSON.stringify(analystRatings) 
     };
-  } catch (error) { /* ...catch部分保持不变... */ }
+  } catch (error) {
+    console.error('Function Error:', error);
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ error: error.message }) 
+    };
+  }
 };
