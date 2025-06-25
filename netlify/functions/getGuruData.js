@@ -1,47 +1,70 @@
-// 文件路径: netlify/functions/getGuruData.js (V3 - 优雅降级版)
 const fetch = require('node-fetch');
 
+const NASDAQ_100 = ['AAPL', 'MSFT', 'GOOG', 'AMZN', 'NVDA', 'TSLA', /* ... 更多股票代码 ... */];
+
+// MVP阶段，我们先用静态的行业均值，避免复杂的API调用
+const INDUSTRY_PE_MAP = {
+    "Technology": 28.5, "Consumer Cyclical": 22.1, "Healthcare": 25.0, "Financial Services": 14.0 
+};
+
 exports.handler = async function (event, context) {
-  const ticker = event.queryStringParameters.symbol || 'AAPL';
-  const apiKey = process.env.FINNHUB_API_KEY;
+    const apiKey = process.env.EODHD_API_KEY;
+    if (!apiKey) return { statusCode: 500, body: JSON.stringify({ error: "API Key not configured." }) };
 
-  if (!apiKey) { return { statusCode: 500, body: JSON.stringify({ error: 'API Key未配置' }) }; }
+    const ticker = event.queryStringParameters.symbol?.toUpperCase();
+    if (!ticker) return { statusCode: 400, body: JSON.stringify({ error: "Stock symbol is required." }) };
 
-  const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${apiKey}`;
-  const recommendationUrl = `https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${apiKey}`;
-  const priceTargetUrl = `https://finnhub.io/api/v1/stock/price-target?symbol=${ticker}&token=${apiKey}`;
-
-  try {
-    const [quoteResponse, recommendationResponse, priceTargetResponse] = await Promise.all([
-      fetch(quoteUrl),
-      fetch(recommendationUrl),
-      fetch(priceTargetUrl)
-    ]);
-
-    if (!quoteResponse.ok) throw new Error(`获取股价失败`);
-    if (!recommendationResponse.ok) throw new Error(`获取分析师评级失败`);
-    
-    const quoteData = await quoteResponse.json();
-    const recommendationData = await recommendationResponse.json();
-    
-    let priceTargetData = {}; // **关键改动**: 默认目标价数据为空对象
-    if (priceTargetResponse.ok) {
-        // **关键改动**: 只有在请求成功时，才去解析和赋值
-        priceTargetData = await priceTargetResponse.json();
-        console.log(`成功获取到 ${ticker} 的目标价数据!`);
-    } else {
-        console.warn(`无法获取 ${ticker} 的目标价数据 (状态: ${priceTargetResponse.status})，将优雅降级。`);
+    if (!NASDAQ_100.includes(ticker)) {
+        return { statusCode: 400, body: JSON.stringify({ error: `股票 ${ticker} 暂未纳入核心分析范围 (纳斯达克100)` }) };
     }
 
-    const latestRecommendation = (recommendationData && recommendationData.length > 0) ? recommendationData[0] : {};
+    const fundamentalsUrl = `https://eodhistoricaldata.com/api/fundamentals/${ticker}.US?api_token=${apiKey}&fmt=json`;
+    const realTimeUrl = `https://eodhistoricaldata.com/api/real-time/${ticker}.US?api_token=${apiKey}&fmt=json`;
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        quote: quoteData,
-        recommendation: { /* ...评级数据保持不变... */ },
-        target: priceTargetData // 返回获取到的目标价数据，或者一个空对象
-      })
-    };
-  } catch (error) { /* ...catch部分保持不变... */ }
+    try {
+        // 并行获取数据
+        const [fundamentalsRes, realTimeRes] = await Promise.all([
+            fetch(fundamentalsUrl),
+            fetch(realTimeUrl)
+        ]);
+
+        if (!fundamentalsRes.ok) throw new Error(`获取基本面数据失败 (EODHD)`);
+        if (!realTimeRes.ok) throw new Error(`获取实时股价失败 (EODHD)`);
+
+        const fundamentalData = await fundamentalsRes.json();
+        const realTimeData = await realTimeRes.json();
+
+        // --- 后端核心计算 ---
+        const metrics = [
+            { id: 'pe', name: "市盈率(PE)", stockValue: fundamentalData.Valuations?.TrailingPE || 0, industryValue: INDUSTRY_PE_MAP[fundamentalData.General?.Industry] || 25, unit: '', direction: 'lower-is-better' },
+            { id: 'ps', name: "市销率(PS)", stockValue: fundamentalData.Valuations?.PriceSalesTTM || 0, industryValue: 4.5, unit: '', direction: 'lower-is-better' },
+            { id: 'roe', name: "净资产收益率", stockValue: (fundamentalData.Highlights?.ReturnOnEquityTTM || 0) * 100, industryValue: 18.0, unit: '%', direction: 'higher-is-better' },
+            { id: 'growth', name: "营收增长率", stockValue: (fundamentalData.Highlights?.QuarterlyRevenueGrowthYOY || 0) * 100, industryValue: 10.0, unit: '%', direction: 'higher-is-better' }
+        ];
+
+        let totalRisk = 0;
+        metrics.forEach(m => {
+            let riskValue = 50;
+            if (m.industryValue !== 0) {
+                const ratio = m.stockValue / m.industryValue;
+                riskValue = m.direction === 'lower-is-better' ? (50 * ratio) : (50 / ratio);
+            }
+            m.riskValue = Math.max(0, Math.min(100, riskValue));
+            totalRisk += m.riskValue;
+        });
+        
+        const responseData = {
+            ticker: fundamentalData.General?.Code,
+            companyName: fundamentalData.General?.Name,
+            lastUpdate: new Date(fundamentalData.General?.Updated_at).toLocaleString('zh-CN'),
+            currentPrice: realTimeData.close,
+            overallRiskValue: totalRisk / metrics.length,
+            metrics: metrics
+        };
+        
+        return { statusCode: 200, body: JSON.stringify(responseData) };
+
+    } catch (error) {
+        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    }
 };
